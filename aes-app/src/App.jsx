@@ -1,4 +1,3 @@
-// src/App.jsx
 import { useState, useRef } from 'react';
 import { encrypt, decrypt } from './aes.js';
 import './App.css';
@@ -11,6 +10,7 @@ function App() {
   const [encryptionTime, setEncryptionTime] = useState(null);
   const [decryptionTime, setDecryptionTime] = useState(null);
   const [activeTab, setActiveTab] = useState('text'); // 'text' or 'file'
+  const [keyLength, setKeyLength] = useState(16); // Default: AES-128 (16 bytes)
   const fileInputRef = useRef(null);
   const [fileName, setFileName] = useState('');
   const [fileContent, setFileContent] = useState('');
@@ -22,10 +22,14 @@ function App() {
       return;
     }
 
+    if (secretKey.length !== keyLength) {
+      alert(`Khóa bí mật phải có độ dài ${keyLength} ký tự cho AES-${keyLength * 8}!`);
+      return;
+    }
+
     setIsProcessing(true);
     const textToEncrypt = activeTab === 'text' ? inputText : fileContent;
 
-    // Sử dụng setTimeout để cho phép UI cập nhật trước khi thực hiện công việc nặng
     setTimeout(() => {
       try {
         const startTime = performance.now();
@@ -50,6 +54,11 @@ function App() {
       return;
     }
 
+    if (secretKey.length !== keyLength) {
+      alert(`Khóa bí mật phải có độ dài ${keyLength} ký tự cho AES-${keyLength * 8}!`);
+      return;
+    }
+
     if (!encryptedText) {
       alert('Không có dữ liệu mã hóa để giải mã!');
       return;
@@ -57,7 +66,6 @@ function App() {
 
     setIsProcessing(true);
 
-    // Sử dụng setTimeout để cho phép UI cập nhật trước khi thực hiện công việc nặng
     setTimeout(() => {
       try {
         const startTime = performance.now();
@@ -92,9 +100,14 @@ function App() {
     const element = document.createElement('a');
     const file = new Blob([content], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
-    element.download = type === 'encrypted'
-      ? (fileName ? `${fileName}.encrypted` : 'encrypted.txt')
-      : (fileName ? `${fileName}.decrypted` : 'decrypted.txt');
+    element.download =
+      type === 'encrypted'
+        ? fileName
+          ? `${fileName}.encrypted`
+          : 'encrypted.txt'
+        : fileName
+          ? `${fileName}.decrypted`
+          : 'decrypted.txt';
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -108,6 +121,7 @@ function App() {
     setDecryptionTime(null);
     setFileContent('');
     setFileName('');
+    setSecretKey('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -118,16 +132,34 @@ function App() {
       <h1>Mã hóa và Giải mã AES</h1>
 
       <div className="key-section">
-        <label htmlFor="secretKey">Khóa bí mật (16 ký tự):</label>
+        <label htmlFor="keyLength">Loại mã hóa:</label>
+        <select
+          id="keyLength"
+          value={keyLength}
+          onChange={(e) => {
+            setKeyLength(Number(e.target.value));
+            setSecretKey(''); // Reset khóa khi thay đổi độ dài
+          }}
+        >
+          <option value={16}>AES-128 (16 ký tự)</option>
+          <option value={24}>AES-192 (24 ký tự)</option>
+          <option value={32}>AES-256 (32 ký tự)</option>
+        </select>
+      </div>
+
+      <div className="key-section">
+        <label htmlFor="secretKey">Khóa bí mật ({keyLength} ký tự):</label>
         <input
           type="text"
           id="secretKey"
           value={secretKey}
           onChange={(e) => setSecretKey(e.target.value)}
-          maxLength={16}
-          placeholder="Nhập khóa 16 ký tự"
+          maxLength={keyLength}
+          placeholder={`Nhập khóa ${keyLength} ký tự`}
         />
-        <small>Lưu ý: Chỉ 16 ký tự đầu tiên được sử dụng làm khóa</small>
+        <small>
+          Lưu ý: Khóa phải đúng {keyLength} ký tự cho AES-{keyLength * 8}
+        </small>
       </div>
 
       <div className="tabs">
@@ -175,13 +207,21 @@ function App() {
       )}
 
       <div className="button-group">
-        <button onClick={handleEncrypt} disabled={isProcessing || (!inputText && !fileContent) || !secretKey}>
+        <button
+          onClick={handleEncrypt}
+          disabled={isProcessing || (!inputText && !fileContent) || !secretKey}
+        >
           {isProcessing ? 'Đang mã hóa...' : 'Mã hóa'}
         </button>
-        <button onClick={handleDecrypt} disabled={isProcessing || !encryptedText || !secretKey}>
+        <button
+          onClick={handleDecrypt}
+          disabled={isProcessing || !encryptedText || !secretKey}
+        >
           {isProcessing ? 'Đang giải mã...' : 'Giải mã'}
         </button>
-        <button onClick={clearAll} disabled={isProcessing}>Xóa tất cả</button>
+        <button onClick={clearAll} disabled={isProcessing}>
+          Xóa tất cả
+        </button>
       </div>
 
       {encryptionTime !== null && (
@@ -192,12 +232,8 @@ function App() {
 
       {encryptedText && (
         <div className="result-section">
-          <h3>Kết quả mã hóa:</h3>
-          <textarea
-            value={encryptedText}
-            readOnly
-            rows={5}
-          />
+          <h3>Kết quả mã hóa (AES-{keyLength * 8}):</h3>
+          <textarea value={encryptedText} readOnly rows={5} />
           <button onClick={() => handleDownload(encryptedText, 'encrypted')}>
             Tải xuống văn bản mã hóa
           </button>
@@ -212,12 +248,8 @@ function App() {
 
       {decryptedText && (
         <div className="result-section">
-          <h3>Kết quả giải mã:</h3>
-          <textarea
-            value={decryptedText}
-            readOnly
-            rows={5}
-          />
+          <h3>Kết quả giải mã (AES-{keyLength * 8}):</h3>
+          <textarea value={decryptedText} readOnly rows={5} />
           <button onClick={() => handleDownload(decryptedText, 'decrypted')}>
             Tải xuống văn bản giải mã
           </button>
